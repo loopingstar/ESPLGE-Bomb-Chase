@@ -1,0 +1,315 @@
+int i, y, key, lastKey, limitUpleft, limitRightbottom;
+int time = 0, timeCount = 0;
+int maxTime = 0, maxBombs = 0;
+int mode = 0; // 0 title / 1 game / 2 end game / 3 help / 4 highscores
+int titleOption = 0;
+int highscoreSaved = 0;
+
+struct saveDatas{
+	int easy;
+	int normal;
+	int hard;
+}
+saveDatas save[1];
+saveDatas oldSave[1];
+
+//
+int bombTimer = 0;
+int bombLaunch = 10;
+int bombSide = 0;
+int bombIndex = 1;
+int bombSpeed = 3;
+
+// 8x8
+char player[] = {
+0x00, 0xee, 0xee, 0x00,
+0x0e, 0xee, 0xee, 0xe0,
+0xee, 0x11, 0x11, 0xee,
+0xe1, 0xbf, 0xfb, 0x1e,
+0xe1, 0xbf, 0xfb, 0x1e,
+0xee, 0x11, 0x11, 0xee,
+0x0e, 0xee, 0xee, 0xe0,
+0x00, 0xee, 0xee, 0x00
+};
+int playerX, playerY;
+int playerSpeed;
+
+// 17x17
+char mine[] = {
+0x00, 0x00, 0x00, 0x00, 0x99, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x09, 0x99, 0x90, 0x00, 0x00, 0x00,
+0x00, 0x99, 0x00, 0xc9, 0x99, 0x9c, 0x00, 0x99, 0x00,
+0x00, 0x09, 0x99, 0xcc, 0xcc, 0xcc, 0x99, 0x90, 0x00,
+0x00, 0x09, 0x99, 0xcc, 0xc9, 0xcc, 0x99, 0x90, 0x00,
+0x00, 0x09, 0x9c, 0xc9, 0x99, 0x9c, 0xc9, 0x90, 0x00,
+0x00, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x00,
+0x09, 0x9c, 0xc9, 0xcc, 0xcc, 0xcc, 0x9c, 0xc9, 0x90,
+0x99, 0x9c, 0x99, 0xcc, 0xc9, 0xcc, 0x99, 0xc9, 0x99,
+0x09, 0x9c, 0xc9, 0xcc, 0xcc, 0xcc, 0x9c, 0xc9, 0x90,
+0x00, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0x00,
+0x00, 0x09, 0x9c, 0xc9, 0x99, 0x9c, 0xc9, 0x90, 0x00,
+0x00, 0x09, 0x99, 0xcc, 0xc9, 0xcc, 0x99, 0x90, 0x00,
+0x00, 0x09, 0x99, 0xcc, 0xcc, 0xcc, 0x99, 0x90, 0x00,
+0x00, 0x99, 0x00, 0xc9, 0x99, 0x9c, 0x00, 0x99, 0x00,
+0x00, 0x00, 0x00, 0x09, 0x99, 0x90, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x99, 0x00, 0x00, 0x00, 0x00
+};
+
+void mineOnExitScreen(int n) {
+	spritesetvalue(n, S_LIVES, 0);
+	spritesetvalue(n, S_SPEEDX, 0);
+	spritesetvalue(n, S_SPEEDY, 0);
+}
+
+void mineOnCollision(int n) {
+	for (i = 0; i <= 32; i++) {
+		spritesetvalue(i, S_LIVES, 0);
+		spritesetvalue(i, S_WIDTH, 0);
+		spritesetvalue(i, S_HEIGHT, 0);
+		spritesetvalue(i, S_SPEEDX, 0);
+		spritesetvalue(i, S_SPEEDY, 0);
+	}
+
+	mode = 2;
+}
+
+void modeEndGame(int key) {
+	highscoreSaved = 0;
+
+	gotoxy(0, 0);
+	puts("BOMB CHASE");
+	gotoxy(0, 3);
+	puts("Game Over!");
+	gotoxy(0, 5);
+	printf("Your score: %d", time);
+	gotoxy(0, 6);
+	if (titleOption==1) {
+		printf("Best score: %d", oldSave[0].easy);
+		if (time > oldSave[0].easy) {
+			save.easy = time;
+			highscoreSaved = 1;
+		}
+	}
+	if (titleOption==2) {
+		printf("Best score: %d", oldSave[0].normal);
+		if (time > oldSave[0].normal) {
+			save.normal = time;
+			highscoreSaved = 1;
+		}
+	}
+	if (titleOption==3) {
+		printf("Best score: %d", oldSave[0].hard);
+		if (time > oldSave[0].hard) {
+			save.hard = time;
+			highscoreSaved = 1;
+		}
+	}
+
+	if (highscoreSaved == 1) {
+		gotoxy(0, 8);
+		puts("CONGRATULATIONS!");
+		gotoxy(0, 10);
+		puts("You have beaten");
+		gotoxy(0, 11);
+		puts("the Best Score!");
+		gotoxy(0, 12);
+		puts("New highscore saved!");
+
+		savedata("bombchase", &save, 6);
+	}
+
+	gotoxy(0, 15);
+	puts("Button A/B to return");
+
+	if ((key & KEY_A) || (key & KEY_B)) if (key != lastKey) mode = 0;
+}
+
+void init() {
+	loaddata("bombchase", &save);
+	oldSave = save; // pour afficher les anciens scores
+
+	playerX = 64 - (8 / 2);
+	playerY = 64 - (8 / 2);
+
+	getsprite(0, player);
+	spritesetvalue(0, S_WIDTH, 8);
+	spritesetvalue(0, S_HEIGHT, 8);
+	spritesetvalue(0, S_ON_COLLISION, mineOnCollision);
+
+	time = 0;
+	timeCount = 0;
+	maxTime = 0;
+
+	bombIndex = 1;
+	bombTimer = 0;
+}
+
+void modeTitle(int key) {
+	gotoxy(0, 0);
+	puts("BOMB CHASE");
+	gotoxy(0, 4);
+	puts((titleOption==0?">":" ")); puts(" Highscores");
+	gotoxy(0, 6);
+	puts((titleOption==1?">":" ")); puts(" Play Easy");
+	gotoxy(0, 7);
+	puts((titleOption==2?">":" ")); puts(" Play Normal");
+	gotoxy(0, 8);
+	puts((titleOption==3?">":" ")); puts(" Play Hard");
+	gotoxy(0, 10);
+	puts((titleOption==4?">":" ")); puts(" Help");
+	gotoxy(0, 14);
+	puts("Up/Down to choose");
+	gotoxy(0, 15);
+	puts("Button A to select");
+
+	if (key & KEY_UP) if(key != lastKey) titleOption--;
+	if (key & KEY_DOWN) if(key != lastKey) titleOption++;
+
+	if (titleOption < 0) titleOption = 4;
+	if (titleOption > 4) titleOption = 0;
+
+	if (key & KEY_A) {
+		if (key != lastKey) {
+			if (titleOption == 0) mode = 4;
+			if (titleOption == 1) {
+				bombLaunch = 40;
+				bombSpeed = 1;
+				init()
+				mode = 1;
+			}
+			if (titleOption == 2) {
+				bombLaunch = 20;
+				bombSpeed = 3;
+				init()
+				mode = 1;
+			}
+			if (titleOption == 3) {
+				bombLaunch = 5;
+				bombSpeed = 10;
+				init()
+				mode = 1;
+			}
+			if (titleOption == 4) mode = 3;
+		}
+	}
+}
+
+void modeHighscore(int key) {
+	gotoxy(0, 0);
+	puts("BOMB CHASE");
+	gotoxy(0, 2);
+	puts("HIGHSCORES");
+	gotoxy(0, 6);
+	printf("EASY: %d", save[0].easy);
+	gotoxy(0, 8);
+	printf("NORMAL: %d", save[0].normal);
+	gotoxy(0, 10);
+	printf("HARD: %d", save[0].hard);
+	gotoxy(0, 15);
+	puts("Button A/B to return");
+
+	if ((key & KEY_A) || (key & KEY_B)) if (key != lastKey) mode = 0;
+}
+
+void modeHelp(int key) {
+	gotoxy(0, 0);
+	puts("BOMB CHASE");
+	gotoxy(0, 2);
+	puts("HELP");
+	gotoxy(0, 4);
+	puts("Help Bobby avoid");
+	gotoxy(0, 5);
+	puts("bombs as long");
+	gotoxy(0, 6);
+	puts("as possible!");
+	gotoxy(0, 15);
+	puts("Button A/B to return");
+
+	if ((key & KEY_A) || (key & KEY_B)) if (key != lastKey) mode = 0;
+}
+
+void modeGame(int key) {
+	timeCount++;
+	if (timeCount >= 20) {
+		timeCount = 0;
+		time++;
+	}
+
+	gotoxy(0, 0);
+	printf("Time: %d", time);
+
+	if (titleOption == 1) printf("/%d", save[0].easy);
+	if (titleOption == 2) printf("/%d", save[0].normal);
+	if (titleOption == 3) printf("/%d", save[0].hard);
+
+	puts((titleOption==1?" - EASY":(titleOption==2?" - NORMAL":(titleOption==3?" - HARD":""))));
+
+	// ENNEMIES
+	bombTimer++;
+	if (bombTimer >= bombLaunch) {
+		bombTimer = 0;
+
+		getsprite(bombIndex, mine);
+		spritesetvalue(bombIndex, S_WIDTH, 17);
+		spritesetvalue(bombIndex, S_HEIGHT, 17);
+		spritesetvalue(bombIndex, S_ON_EXIT_SCREEN, mineOnExitScreen);
+
+		// pos
+		bombSide = random(3);
+		switch(bombSide) {
+			case 0: // up
+				putsprite(bombIndex, random(108), -10);
+				spritesetvalue(bombIndex, S_SPEEDY, (bombSpeed + random(5)));
+			break;
+			case 1: // right
+				putsprite(bombIndex, 120, random(108));
+				spritesetvalue(bombIndex, S_SPEEDX, 0 - (bombSpeed + random(5)));
+			break;
+			case 2: // down
+				putsprite(bombIndex, random(108), 120);
+				spritesetvalue(bombIndex, S_SPEEDY, 0 - (bombSpeed + random(5)));
+			break;
+			case 3: // left
+				putsprite(bombIndex, -10, random(108));
+				spritesetvalue(bombIndex, S_SPEEDX, (bombSpeed + random(5)));
+			break;
+		}
+
+		bombIndex++;
+		if (bombIndex == 31) bombIndex = 1;
+	}
+
+	// PLAYER
+	playerSpeed = 2;
+	if (key & KEY_A) playerSpeed = 4;
+
+	limitUpleft = playerSpeed + 1;
+	limitRightbottom = 128 - playerSpeed - 8 - 1;
+
+	if (key & KEY_UP) playerY = (playerY <= limitUpleft) ? limitUpleft : playerY - playerSpeed;
+	if (key & KEY_DOWN) playerY = (playerY >= limitRightbottom) ? limitRightbottom : playerY + playerSpeed;
+	if (key & KEY_LEFT) playerX = (playerX <= limitUpleft) ? limitUpleft : playerX - playerSpeed;
+	if (key & KEY_RIGHT) playerX = (playerX >= limitRightbottom) ? limitRightbottom : playerX + playerSpeed;
+
+	putsprite(0, playerX, playerY);
+}
+
+void main() {
+	init();
+
+	while(1) {
+		clearscreen();
+		key = getkey();
+
+		switch (mode) {
+			case 0: modeTitle(key); break;
+			case 1: modeGame(key);  break;
+			case 2: modeEndGame(key);  break;
+			case 3: modeHelp(key);  break;
+			case 4: modeHighscore(key);  break;
+		}
+
+		lastKey = key;
+		delayredraw();
+	}
+}
